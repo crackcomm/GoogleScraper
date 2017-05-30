@@ -105,43 +105,6 @@ def start_python_console(namespace=None, noipython=False, banner=''):
         pass
 
 
-class ShowProgressQueue(threading.Thread):
-    """
-    Prints the number of keywords scraped already to show the user the progress of the scraping process.
-
-    In order to achieve this, we need to update the status whenever a new keyword is scraped.
-    """
-
-    def __init__(self, config, queue, num_keywords):
-        """Create a ShowProgressQueue thread instance.
-
-        Args:
-            queue: A queue.Queue instance to share among the worker threads.
-            num_keywords: The number of total keywords that need to be scraped.
-        """
-        super().__init__()
-        self.queue = queue
-        self.num_keywords = num_keywords
-        self.num_already_processed = 0
-        self.progress_fmt = '\033[92m{}/{} keywords processed.\033[0m'
-
-    def run(self):
-        while self.num_already_processed < self.num_keywords:
-            e = self.queue.get()
-
-            if e == 'done':
-                break
-
-            self.num_already_processed += 1
-
-            print(self.progress_fmt.format(self.num_already_processed, self.num_keywords), end='\r')
-
-            # TODO: FIX THIS!
-            # self.verbosity == 2 and self.num_already_processed % 5 == 0:
-            # print(self.progress_fmt.format(self.num_already_processed, self.num_keywords))
-            self.queue.task_done()
-
-
 def main(return_results=False, parse_cmd_line=True, config_from_dict=None):
     """Runs the GoogleScraper application as determined by the various configuration points.
 
@@ -377,16 +340,11 @@ def main(return_results=False, parse_cmd_line=True, config_from_dict=None):
             num_proxies=len(proxies),
             num_threads=num_search_engines))
 
-        progress_thread = None
-
         # Let the games begin
         if method in ('selenium', 'http'):
 
             # Show the progress of the scraping
             q = queue.Queue()
-            progress_thread = ShowProgressQueue(config, q, len(scrape_jobs))
-            progress_thread.start()
-
             workers = queue.Queue()
             num_worker = 0
             for search_engine in search_engines:
@@ -438,7 +396,6 @@ def main(return_results=False, parse_cmd_line=True, config_from_dict=None):
 
             # after threads are done, stop the progress queue.
             q.put('done')
-            progress_thread.join()
 
         elif method == 'http-async':
             scheduler = AsyncScrapeScheduler(config, scrape_jobs, cache_manager=cache_manager, session=session, scraper_search=scraper_search,
